@@ -44,6 +44,8 @@ const (
 	Resize
 	Mouse
 	DoubleClick
+	LeftClick
+	RightClick
 
 	BTab
 	BSpace
@@ -59,6 +61,8 @@ const (
 	Home
 	End
 
+	SUp
+	SDown
 	SLeft
 	SRight
 
@@ -80,6 +84,11 @@ const (
 	AltSpace
 	AltSlash
 	AltBS
+
+	AltUp
+	AltDown
+	AltLeft
+	AltRight
 
 	Alt0
 )
@@ -185,6 +194,7 @@ type MouseEvent struct {
 	Y      int
 	X      int
 	S      int
+	Left   bool
 	Down   bool
 	Double bool
 	Mod    bool

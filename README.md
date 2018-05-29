@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/junegunn/i/master/fzf.png" height="170" alt="fzf - a command-line fuzzy finder"> [![travis-ci](https://travis-ci.org/junegunn/fzf.svg?branch=master)](https://travis-ci.org/junegunn/fzf) [![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=EKYAW9PGKPD2N)
+<img src="https://raw.githubusercontent.com/junegunn/i/master/fzf.png" height="170" alt="fzf - a command-line fuzzy finder"> [![travis-ci](https://travis-ci.org/junegunn/fzf.svg?branch=master)](https://travis-ci.org/junegunn/fzf)
 ===
 
 fzf is a general-purpose command-line fuzzy finder.
@@ -23,9 +23,11 @@ Table of Contents
 -----------------
 
    * [Installation](#installation)
-      * [Using git](#using-git)
       * [Using Homebrew or Linuxbrew](#using-homebrew-or-linuxbrew)
+      * [Using git](#using-git)
       * [As Vim plugin](#as-vim-plugin)
+      * [Arch Linux](#arch-linux)
+      * [Fedora](#fedora)
       * [Windows](#windows)
    * [Upgrading fzf](#upgrading-fzf)
    * [Building fzf](#building-fzf)
@@ -51,7 +53,7 @@ Table of Contents
       * [Executing external programs](#executing-external-programs)
       * [Preview window](#preview-window)
    * [Tips](#tips)
-      * [Respecting .gitignore, <code>.hgignore</code>, and <code>svn:ignore</code>](#respecting-gitignore-hgignore-and-svnignore)
+      * [Respecting .gitignore](#respecting-gitignore)
       * [git ls-tree for fast traversal](#git-ls-tree-for-fast-traversal)
       * [Fish shell](#fish-shell)
    * [<a href="LICENSE">License</a>](#license)
@@ -73,20 +75,10 @@ stuff.
 
 [bin]: https://github.com/junegunn/fzf-bin/releases
 
-### Using git
-
-Clone this repository and run
-[install](https://github.com/junegunn/fzf/blob/master/install) script.
-
-```sh
-git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-~/.fzf/install
-```
-
 ### Using Homebrew or Linuxbrew
 
-Alternatively, you can use [Homebrew](http://brew.sh/) or
-[Linuxbrew](http://linuxbrew.sh/) to install fzf.
+You can use [Homebrew](http://brew.sh/) or [Linuxbrew](http://linuxbrew.sh/)
+to install fzf.
 
 ```sh
 brew install fzf
@@ -95,24 +87,69 @@ brew install fzf
 $(brew --prefix)/opt/fzf/install
 ```
 
+### Using git
+
+Alternatively, you can "git clone" this repository to any directory and run
+[install](https://github.com/junegunn/fzf/blob/master/install) script.
+
+```sh
+git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install
+```
+
 ### As Vim plugin
 
-You can manually add the directory to `&runtimepath` as follows,
+Once you have fzf installed, you can enable it inside Vim simply by adding the
+directory to `&runtimepath` in your Vim configuration file as follows:
 
 ```vim
-" If installed using git
-set rtp+=~/.fzf
-
 " If installed using Homebrew
 set rtp+=/usr/local/opt/fzf
+
+" If installed using git
+set rtp+=~/.fzf
 ```
 
-But it's recommended that you use a plugin manager like
-[vim-plug](https://github.com/junegunn/vim-plug).
+If you use [vim-plug](https://github.com/junegunn/vim-plug), the same can be
+written as:
 
 ```vim
-Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
+" If installed using Homebrew
+Plug '/usr/local/opt/fzf'
+
+" If installed using git
+Plug '~/.fzf'
 ```
+
+But instead of separately installing fzf on your system (using Homebrew or
+"git clone") and enabling it on Vim (adding it to `&runtimepath`), you can use
+vim-plug to do both.
+
+```vim
+" PlugInstall and PlugUpdate will clone fzf in ~/.fzf and run install script
+Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
+  " Both options are optional. You don't have to install fzf in ~/.fzf
+  " and you don't have to run install script if you use fzf only in Vim.
+```
+
+### Arch Linux
+
+```sh
+sudo pacman -S fzf
+```
+
+### Fedora
+
+fzf is available in Fedora 26 and above, and can be installed using the usual
+method:
+
+```sh
+sudo dnf install fzf
+```
+
+Shell completion and plugins for vim or neovim are enabled by default. Shell
+key bindings are installed but not enabled by default. See Fedora's package
+documentation (/usr/share/doc/fzf/README.Fedora) for more information.
 
 ### Windows
 
@@ -206,14 +243,15 @@ Unless otherwise specified, fzf starts in "extended-search mode" where you can
 type in multiple search terms delimited by spaces. e.g. `^music .mp3$ sbtrkt
 !fire`
 
-| Token    | Match type                 | Description                       |
-| -------- | -------------------------- | --------------------------------- |
-| `sbtrkt` | fuzzy-match                | Items that match `sbtrkt`         |
-| `^music` | prefix-exact-match         | Items that start with `music`     |
-| `.mp3$`  | suffix-exact-match         | Items that end with `.mp3`        |
-| `'wild`  | exact-match (quoted)       | Items that include `wild`         |
-| `!fire`  | inverse-exact-match        | Items that do not include `fire`  |
-| `!.mp3$` | inverse-suffix-exact-match | Items that do not end with `.mp3` |
+| Token     | Match type                 | Description                          |
+| --------- | -------------------------- | ------------------------------------ |
+| `sbtrkt`  | fuzzy-match                | Items that match `sbtrkt`            |
+| `'wild`   | exact-match (quoted)       | Items that include `wild`            |
+| `^music`  | prefix-exact-match         | Items that start with `music`        |
+| `.mp3$`   | suffix-exact-match         | Items that end with `.mp3`           |
+| `!fire`   | inverse-exact-match        | Items that do not include `fire`     |
+| `!^music` | inverse-prefix-exact-match | Items that do not start with `music` |
+| `!.mp3$`  | inverse-suffix-exact-match | Items that do not end with `.mp3`    |
 
 If you don't prefer fuzzy matching and do not wish to "quote" every word,
 start fzf with `-e` or `--exact` option. Note that when  `--exact` is set,
@@ -231,7 +269,7 @@ or `py`.
 
 - `FZF_DEFAULT_COMMAND`
     - Default command to use when input is tty
-    - e.g. `export FZF_DEFAULT_COMMAND='rg --files'`
+    - e.g. `export FZF_DEFAULT_COMMAND='fd --type f'`
 - `FZF_DEFAULT_OPTS`
     - Default options
     - e.g. `export FZF_DEFAULT_OPTS="--reverse --inline-info"`
@@ -369,26 +407,19 @@ export FZF_COMPLETION_TRIGGER='~~'
 # Options to fzf command
 export FZF_COMPLETION_OPTS='+c -x'
 
-# Use rg (https://github.com/BurntSushi/ripgrep) instead of the default find
+# Use fd (https://github.com/sharkdp/fd) instead of the default find
 # command for listing path candidates.
-# - The first argument to the function is the base path to start traversal
+# - The first argument to the function ($1) is the base path to start traversal
 # - See the source code (completion.{bash,zsh}) for the details.
-# - rg only lists files, so we use with-dir script to augment the output
 _fzf_compgen_path() {
-  rg --files "$1" | with-dir "$1"
+  fd --hidden --follow --exclude ".git" . "$1"
 }
 
-# Use rg to generate the list for directory completion
+# Use fd to generate the list for directory completion
 _fzf_compgen_dir() {
-  rg --files "$1" | only-dir "$1"
+  fd --type d --hidden --follow --exclude ".git" . "$1"
 }
 ```
-
-`only-dir` and `with-dir` scripts can be found [here][dir-scripts]. They are
-written in Ruby, but you should be able to rewrite them in any language you
-prefer.
-
-[dir-scripts]: https://gist.github.com/junegunn/8c3796a965f22e6a803fe53096ad7a75
 
 #### Supported commands
 
@@ -490,29 +521,33 @@ For more advanced examples, see [Key bindings for git with fzf][fzf-git].
 Tips
 ----
 
-#### Respecting `.gitignore`, `.hgignore`, and `svn:ignore`
+#### Respecting `.gitignore`
 
-[ripgrep](https://github.com/BurntSushi/ripgrep) or [the silver
-searcher](https://github.com/ggreer/the_silver_searcher) can do the filtering:
+You can use [fd](https://github.com/sharkdp/fd),
+[ripgrep](https://github.com/BurntSushi/ripgrep), or [the silver
+searcher](https://github.com/ggreer/the_silver_searcher) instead of the
+default find command to traverse the file system while respecting
+`.gitignore`.
 
 ```sh
-# Feed the output of rg into fzf
-rg --files | fzf
+# Feed the output of fd into fzf
+fd --type f | fzf
 
-# Setting rg as the default source for fzf
-export FZF_DEFAULT_COMMAND='rg --files'
+# Setting fd as the default source for fzf
+export FZF_DEFAULT_COMMAND='fd --type f'
 
-# Now fzf (w/o pipe) will use rg instead of find
+# Now fzf (w/o pipe) will use fd instead of find
 fzf
 
 # To apply the command to CTRL-T as well
 export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 ```
 
-If you don't want to exclude hidden files, use the following command:
+If you want the command to follow symbolic links, and don't want it to exclude
+hidden files, use the following command:
 
 ```sh
-export FZF_DEFAULT_COMMAND='rg --files --hidden --glob \!.git'
+export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
 ```
 
 #### `git ls-tree` for fast traversal

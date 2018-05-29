@@ -193,19 +193,22 @@ func (r *FullscreenRenderer) GetChar() Event {
 		button := ev.Buttons()
 		mod := ev.Modifiers() != 0
 		if button&tcell.WheelDown != 0 {
-			return Event{Mouse, 0, &MouseEvent{y, x, -1, false, false, mod}}
+			return Event{Mouse, 0, &MouseEvent{y, x, -1, false, false, false, mod}}
 		} else if button&tcell.WheelUp != 0 {
-			return Event{Mouse, 0, &MouseEvent{y, x, +1, false, false, mod}}
+			return Event{Mouse, 0, &MouseEvent{y, x, +1, false, false, false, mod}}
 		} else if runtime.GOOS != "windows" {
 			// double and single taps on Windows don't quite work due to
 			// the console acting on the events and not allowing us
 			// to consume them.
 
-			down := button&tcell.Button1 != 0 // left
+			left := button&tcell.Button1 != 0
+			down := left || button&tcell.Button3 != 0
 			double := false
 			if down {
 				now := time.Now()
-				if now.Sub(r.prevDownTime) < doubleClickDuration {
+				if !left {
+					r.clickY = []int{}
+				} else if now.Sub(r.prevDownTime) < doubleClickDuration {
 					r.clickY = append(r.clickY, x)
 				} else {
 					r.clickY = []int{x}
@@ -218,7 +221,7 @@ func (r *FullscreenRenderer) GetChar() Event {
 				}
 			}
 
-			return Event{Mouse, 0, &MouseEvent{y, x, 0, down, double, mod}}
+			return Event{Mouse, 0, &MouseEvent{y, x, 0, left, down, double, mod}}
 		}
 
 		// process keyboard:
@@ -292,12 +295,24 @@ func (r *FullscreenRenderer) GetChar() Event {
 			return Event{BSpace, 0, nil}
 
 		case tcell.KeyUp:
+			if alt {
+				return Event{AltUp, 0, nil}
+			}
 			return Event{Up, 0, nil}
 		case tcell.KeyDown:
+			if alt {
+				return Event{AltDown, 0, nil}
+			}
 			return Event{Down, 0, nil}
 		case tcell.KeyLeft:
+			if alt {
+				return Event{AltLeft, 0, nil}
+			}
 			return Event{Left, 0, nil}
 		case tcell.KeyRight:
+			if alt {
+				return Event{AltRight, 0, nil}
+			}
 			return Event{Right, 0, nil}
 
 		case tcell.KeyHome:

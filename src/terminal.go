@@ -24,7 +24,7 @@ import (
 var placeholder *regexp.Regexp
 
 func init() {
-	placeholder = regexp.MustCompile("\\\\?(?:{\\+?[0-9,-.]*}|{q})")
+	placeholder = regexp.MustCompile("\\\\?(?:{[+s]*[0-9,-.]*}|{q})")
 }
 
 type jumpMode int
@@ -170,6 +170,7 @@ const (
 	actBeginningOfLine
 	actAbort
 	actAccept
+	actAcceptNonEmpty
 	actBackwardChar
 	actBackwardDeleteChar
 	actBackwardWord
@@ -203,6 +204,7 @@ const (
 	actJump
 	actJumpAccept
 	actPrintQuery
+	actReplaceQuery
 	actToggleSort
 	actTogglePreview
 	actTogglePreviewWrap
@@ -218,6 +220,11 @@ const (
 	actSigStop
 	actTop
 )
+
+type placeholderFlags struct {
+	plus          bool
+	preserveSpace bool
+}
 
 func toActions(types ...actionType) []action {
 	actions := make([]action, len(types))
@@ -275,9 +282,14 @@ func defaultKeymap() map[int][]action {
 	keymap[tui.PgUp] = toActions(actPageUp)
 	keymap[tui.PgDn] = toActions(actPageDown)
 
+	keymap[tui.SUp] = toActions(actPreviewUp)
+	keymap[tui.SDown] = toActions(actPreviewDown)
+
 	keymap[tui.Rune] = toActions(actRune)
 	keymap[tui.Mouse] = toActions(actMouse)
 	keymap[tui.DoubleClick] = toActions(actAccept)
+	keymap[tui.LeftClick] = toActions(actIgnore)
+	keymap[tui.RightClick] = toActions(actToggle)
 	return keymap
 }
 
@@ -691,7 +703,11 @@ func (t *Terminal) printInfo() {
 		output += fmt.Sprintf(" (%d%%)", t.progress)
 	}
 	if !t.success && t.count == 0 {
-		output += " [ERROR]"
+		if len(os.Getenv("FZF_DEFAULT_COMMAND")) > 0 {
+			output = "[$FZF_DEFAULT_COMMAND failed]"
+		} else {
+			output = "[default command failed - $FZF_DEFAULT_COMMAND required]"
+		}
 	}
 	if pos+len(output) <= t.window.Width() {
 		t.window.CPrint(tui.ColInfo, 0, output)
@@ -1119,12 +1135,37 @@ func quoteEntry(entry string) string {
 	return "'" + strings.Replace(entry, "'", "'\\''", -1) + "'"
 }
 
+func parsePlaceholder(match string) (bool, string, placeholderFlags) {
+	flags := placeholderFlags{}
+
+	if match[0] == '\\' {
+		// Escaped placeholder pattern
+		return true, match[1:], flags
+	}
+
+	skipChars := 1
+	for _, char := range match[1:] {
+		switch char {
+		case '+':
+			flags.plus = true
+			skipChars++
+		case 's':
+			flags.preserveSpace = true
+			skipChars++
+		default:
+			break
+		}
+	}
+
+	matchWithoutFlags := "{" + match[skipChars:]
+
+	return false, matchWithoutFlags, flags
+}
+
 func hasPlusFlag(template string) bool {
 	for _, match := range placeholder.FindAllString(template, -1) {
-		if match[0] == '\\' {
-			continue
-		}
-		if match[1] == '+' {
+		_, _, flags := parsePlaceholder(match)
+		if flags.plus {
 			return true
 		}
 	}
@@ -1141,9 +1182,10 @@ func replacePlaceholder(template string, stripAnsi bool, delimiter Delimiter, fo
 		selected = []*Item{}
 	}
 	return placeholder.ReplaceAllStringFunc(template, func(match string) string {
-		// Escaped pattern
-		if match[0] == '\\' {
-			return match[1:]
+		escaped, match, flags := parsePlaceholder(match)
+
+		if escaped {
+			return match
 		}
 
 		// Current query
@@ -1151,13 +1193,8 @@ func replacePlaceholder(template string, stripAnsi bool, delimiter Delimiter, fo
 			return quoteEntry(query)
 		}
 
-		plusFlag := forcePlus
-		if match[1] == '+' {
-			match = "{" + match[2:]
-			plusFlag = true
-		}
 		items := current
-		if plusFlag {
+		if flags.plus || forcePlus {
 			items = selected
 		}
 
@@ -1193,7 +1230,9 @@ func replacePlaceholder(template string, stripAnsi bool, delimiter Delimiter, fo
 					str = str[:delims[len(delims)-1][0]]
 				}
 			}
-			str = strings.TrimSpace(str)
+			if !flags.preserveSpace {
+				str = strings.TrimSpace(str)
+			}
 			replacements[idx] = quoteEntry(str)
 		}
 		return strings.Join(replacements, " ")
@@ -1362,6 +1401,12 @@ func (t *Terminal) Loop() {
 					command := replacePlaceholder(t.preview.command,
 						t.ansi, t.delimiter, false, string(t.input), request)
 					cmd := util.ExecCommand(command)
+					if t.pwindow != nil {
+						env := os.Environ()
+						env = append(env, fmt.Sprintf("LINES=%d", t.pwindow.Height()))
+						env = append(env, fmt.Sprintf("COLUMNS=%d", t.pwindow.Width()))
+						cmd.Env = env
+					}
 					out, _ := cmd.CombinedOutput()
 					t.reqBox.Set(reqPreviewDisplay, string(out))
 				} else {
@@ -1556,6 +1601,11 @@ func (t *Terminal) Loop() {
 				}
 			case actPrintQuery:
 				req(reqPrintQuery)
+			case actReplaceQuery:
+				if t.cy >= 0 && t.cy < t.merger.Length() {
+					t.input = t.merger.Get(t.cy).item.text.ToRunes()
+					t.cx = len(t.input)
+				}
 			case actAbort:
 				req(reqQuit)
 			case actDeleteChar:
@@ -1638,6 +1688,10 @@ func (t *Terminal) Loop() {
 				req(reqList)
 			case actAccept:
 				req(reqClose)
+			case actAcceptNonEmpty:
+				if len(t.selected) > 0 || t.merger.Length() > 0 || !t.reading && t.count == 0 {
+					req(reqClose)
+				}
 			case actClearScreen:
 				req(reqRedraw)
 			case actTop:
@@ -1762,6 +1816,10 @@ func (t *Terminal) Loop() {
 								toggle()
 							}
 							req(reqList)
+							if me.Left {
+								return doActions(t.keymap[tui.LeftClick], tui.LeftClick)
+							}
+							return doActions(t.keymap[tui.RightClick], tui.RightClick)
 						}
 					}
 				}

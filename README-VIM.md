@@ -1,6 +1,50 @@
 FZF Vim integration
 ===================
 
+Installation
+------------
+
+Once you have fzf installed, you can enable it inside Vim simply by adding the
+directory to `&runtimepath` in your Vim configuration file. The path may
+differ depending on the package manager.
+
+```vim
+" If installed using Homebrew
+set rtp+=/usr/local/opt/fzf
+
+" If installed using git
+set rtp+=~/.fzf
+```
+
+If you use [vim-plug](https://github.com/junegunn/vim-plug), the same can be
+written as:
+
+```vim
+" If installed using Homebrew
+Plug '/usr/local/opt/fzf'
+
+" If installed using git
+Plug '~/.fzf'
+```
+
+But if you want the latest Vim plugin file from GitHub rather than the one
+included in the package, write:
+
+```vim
+Plug 'junegunn/fzf'
+```
+
+The Vim plugin will pick up fzf binary available on the system. If fzf is not
+found on `$PATH`, it will ask you if it should download the latest binary for
+you.
+
+To make sure that you have the latest version of the binary, set up
+post-update hook like so:
+
+```vim
+Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+```
+
 Summary
 -------
 
@@ -83,10 +127,19 @@ let g:fzf_action = {
   \ 'ctrl-v': 'vsplit' }
 
 " Default fzf layout
-" - down / up / left / right
-let g:fzf_layout = { 'down': '~40%' }
+" - Popup window (center of the screen)
+let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
 
-" You can set up fzf window using a Vim command (Neovim or latest Vim 8 required)
+" - Popup window (center of the current window)
+let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6, 'relative': v:true } }
+
+" - Popup window (anchored to the bottom of the current window)
+let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6, 'relative': v:true, 'yoffset': 1.0 } }
+
+" - down / up / left / right
+let g:fzf_layout = { 'down': '40%' }
+
+" - Window using a Vim command
 let g:fzf_layout = { 'window': 'enew' }
 let g:fzf_layout = { 'window': '-tabnew' }
 let g:fzf_layout = { 'window': '10new' }
@@ -113,6 +166,57 @@ let g:fzf_colors =
 " - When set, CTRL-N and CTRL-P will be bound to 'next-history' and
 "   'previous-history' instead of 'down' and 'up'.
 let g:fzf_history_dir = '~/.local/share/fzf-history'
+```
+
+##### Explanation of `g:fzf_colors`
+
+`g:fzf_colors` is a dictionary mapping fzf elements to a color specification
+list:
+
+    element: [ component, group1 [, group2, ...] ]
+
+- `element` is an fzf element to apply a color to:
+
+  | Element                     | Description                                           |
+  | ---                         | ---                                                   |
+  | `fg`  / `bg`  / `hl`        | Item (foreground / background / highlight)            |
+  | `fg+` / `bg+` / `hl+`       | Current item (foreground / background / highlight)    |
+  | `preview-fg` / `preview-bg` | Preview window text and background                    |
+  | `hl`  / `hl+`               | Highlighted substrings (normal / current)             |
+  | `gutter`                    | Background of the gutter on the left                  |
+  | `pointer`                   | Pointer to the current line (`>`)                     |
+  | `marker`                    | Multi-select marker (`>`)                             |
+  | `border`                    | Border around the window (`--border` and `--preview`) |
+  | `header`                    | Header (`--header` or `--header-lines`)               |
+  | `info`                      | Info line (match counters)                            |
+  | `spinner`                   | Streaming input indicator                             |
+  | `query`                     | Query string                                          |
+  | `disabled`                  | Query string when search is disabled                  |
+  | `prompt`                    | Prompt before query (`> `)                            |
+  | `pointer`                   | Pointer to the current line (`>`)                     |
+
+- `component` specifies the component (`fg` / `bg`) from which to extract the
+  color when considering each of the following highlight groups
+
+- `group1 [, group2, ...]` is a list of highlight groups that are searched (in
+  order) for a matching color definition
+
+For example, consider the following specification:
+
+```vim
+  'prompt':  ['fg', 'Conditional', 'Comment'],
+```
+
+This means we color the **prompt**
+- using the `fg` attribute of the `Conditional` if it exists,
+- otherwise use the `fg` attribute of the `Comment` highlight group if it exists,
+- otherwise fall back to the default color settings for the **prompt**.
+
+You can examine the color option generated according the setting by printing
+the result of `fzf#wrap()` function like so:
+
+```vim
+:echo fzf#wrap()
 ```
 
 `fzf#run`
@@ -179,11 +283,13 @@ The following table summarizes the available options.
 | `source`                   | list          | Vim list as input to fzf                                              |
 | `sink`                     | string        | Vim command to handle the selected item (e.g. `e`, `tabe`)            |
 | `sink`                     | funcref       | Reference to function to process each selected item                   |
-| `sink*`                    | funcref       | Similar to `sink`, but takes the list of output lines at once         |
+| `sinklist` (or `sink*`)    | funcref       | Similar to `sink`, but takes the list of output lines at once         |
 | `options`                  | string/list   | Options to fzf                                                        |
 | `dir`                      | string        | Working directory                                                     |
 | `up`/`down`/`left`/`right` | number/string | (Layout) Window position and size (e.g. `20`, `50%`)                  |
+| `tmux`                     | string        | (Layout) fzf-tmux options (e.g. `-p90%,60%`)                          |
 | `window` (Vim 8 / Neovim)  | string        | (Layout) Command to open fzf window (e.g. `vertical aboveleft 30new`) |
+| `window` (Vim 8 / Neovim)  | dict          | (Layout) Popup window settings (e.g. `{'width': 0.9, 'height': 0.6}`) |
 
 `options` entry can be either a string or a list. For simple cases, string
 should suffice, but prefer to use list type to avoid escaping issues.
@@ -192,6 +298,19 @@ should suffice, but prefer to use list type to avoid escaping issues.
 call fzf#run({'options': '--reverse --prompt "C:\\Program Files\\"'})
 call fzf#run({'options': ['--reverse', '--prompt', 'C:\Program Files\']})
 ```
+
+When `window` entry is a dictionary, fzf will start in a popup window. The
+following options are allowed:
+
+- Required:
+    - `width` [float range [0 ~ 1]] or [integer range [8 ~ ]]
+    - `height` [float range [0 ~ 1]] or [integer range [4 ~ ]]
+- Optional:
+    - `yoffset` [float default 0.5 range [0 ~ 1]]
+    - `xoffset` [float default 0.5 range [0 ~ 1]]
+    - `relative` [boolean default v:false]
+    - `border` [string default `rounded`]: Border style
+        - `rounded` / `sharp` / `horizontal` / `vertical` / `top` / `bottom` / `left` / `right` / `no[ne]`
 
 `fzf#wrap`
 ----------
@@ -225,8 +344,9 @@ After we *"wrap"* our spec, we pass it to `fzf#run`.
 call fzf#run(fzf#wrap({'source': 'ls'}))
 ```
 
-Now it supports `CTRL-T`, `CTRL-V`, and `CTRL-X` key bindings and it opens fzf
-window according to `g:fzf_layout` setting.
+Now it supports `CTRL-T`, `CTRL-V`, and `CTRL-X` key bindings (configurable
+via `g:fzf_action`) and it opens fzf window according to `g:fzf_layout`
+setting.
 
 To make it easier to use, let's define `LS` command.
 
@@ -249,7 +369,7 @@ Our `:LS` command will be much more useful if we can pass a directory argument
 to it, so that something like `:LS /tmp` is possible.
 
 ```vim
-command! -bang -complete=dir -nargs=* LS
+command! -bang -complete=dir -nargs=? LS
     \ call fzf#run(fzf#wrap({'source': 'ls', 'dir': <q-args>}, <bang>0))
 ```
 
@@ -259,54 +379,100 @@ a unique name to our command and pass it as the first argument to `fzf#wrap`.
 ```vim
 " The query history for this command will be stored as 'ls' inside g:fzf_history_dir.
 " The name is ignored if g:fzf_history_dir is not defined.
-command! -bang -complete=dir -nargs=* LS
+command! -bang -complete=dir -nargs=? LS
     \ call fzf#run(fzf#wrap('ls', {'source': 'ls', 'dir': <q-args>}, <bang>0))
 ```
+
+### Global options supported by `fzf#wrap`
+
+- `g:fzf_layout`
+- `g:fzf_action`
+    - **Works only when no custom `sink` (or `sinklist`) is provided**
+        - Having custom sink usually means that each entry is not an ordinary
+          file path (e.g. name of color scheme), so we can't blindly apply the
+          same strategy (i.e. `tabedit some-color-scheme` doesn't make sense)
+- `g:fzf_colors`
+- `g:fzf_history_dir`
 
 Tips
 ----
 
 ### fzf inside terminal buffer
 
-The latest versions of Vim and Neovim include builtin terminal emulator
-(`:terminal`) and fzf will start in a terminal buffer in the following cases:
-
-- On Neovim
-- On GVim
-- On Terminal Vim with the non-default layout
-    - `call fzf#run({'left': '30%'})` or `let g:fzf_layout = {'left': '30%'}`
-
-#### Starting fzf in Neovim floating window
+On the latest versions of Vim and Neovim, fzf will start in a terminal buffer.
+If you find the default ANSI colors to be different, consider configuring the
+colors using `g:terminal_ansi_colors` in regular Vim or `g:terminal_color_x`
+in Neovim.
 
 ```vim
-" Using floating windows of Neovim to start fzf
+" Terminal colors for seoul256 color scheme
 if has('nvim')
-  let $FZF_DEFAULT_OPTS .= ' --border --margin=0,2'
-
-  function! FloatingFZF()
-    let width = float2nr(&columns * 0.9)
-    let height = float2nr(&lines * 0.6)
-    let opts = { 'relative': 'editor',
-               \ 'row': (&lines - height) / 2,
-               \ 'col': (&columns - width) / 2,
-               \ 'width': width,
-               \ 'height': height }
-
-    let win = nvim_open_win(nvim_create_buf(v:false, v:true), v:true, opts)
-    call setwinvar(win, '&winhighlight', 'NormalFloat:Normal')
-  endfunction
-
-  let g:fzf_layout = { 'window': 'call FloatingFZF()' }
+  let g:terminal_color_0 = '#4e4e4e'
+  let g:terminal_color_1 = '#d68787'
+  let g:terminal_color_2 = '#5f865f'
+  let g:terminal_color_3 = '#d8af5f'
+  let g:terminal_color_4 = '#85add4'
+  let g:terminal_color_5 = '#d7afaf'
+  let g:terminal_color_6 = '#87afaf'
+  let g:terminal_color_7 = '#d0d0d0'
+  let g:terminal_color_8 = '#626262'
+  let g:terminal_color_9 = '#d75f87'
+  let g:terminal_color_10 = '#87af87'
+  let g:terminal_color_11 = '#ffd787'
+  let g:terminal_color_12 = '#add4fb'
+  let g:terminal_color_13 = '#ffafaf'
+  let g:terminal_color_14 = '#87d7d7'
+  let g:terminal_color_15 = '#e4e4e4'
+else
+  let g:terminal_ansi_colors = [
+    \ '#4e4e4e', '#d68787', '#5f865f', '#d8af5f',
+    \ '#85add4', '#d7afaf', '#87afaf', '#d0d0d0',
+    \ '#626262', '#d75f87', '#87af87', '#ffd787',
+    \ '#add4fb', '#ffafaf', '#87d7d7', '#e4e4e4'
+  \ ]
 endif
-
 ```
 
-#### Hide statusline
-
-When fzf starts in a terminal buffer, you may want to hide the statusline of
-the containing buffer.
+### Starting fzf in a popup window
 
 ```vim
+" Required:
+" - width [float range [0 ~ 1]] or [integer range [8 ~ ]]
+" - height [float range [0 ~ 1]] or [integer range [4 ~ ]]
+"
+" Optional:
+" - xoffset [float default 0.5 range [0 ~ 1]]
+" - yoffset [float default 0.5 range [0 ~ 1]]
+" - relative [boolean default v:false]
+" - border [string default 'rounded']: Border style
+"   - 'rounded' / 'sharp' / 'horizontal' / 'vertical' / 'top' / 'bottom' / 'left' / 'right'
+let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
+```
+
+Alternatively, you can make fzf open in a tmux popup window (requires tmux 3.2
+or above) by putting fzf-tmux options in `tmux` key.
+
+```vim
+" See `man fzf-tmux` for available options
+if exists('$TMUX')
+  let g:fzf_layout = { 'tmux': '-p90%,60%' }
+else
+  let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
+endif
+```
+
+### Hide statusline
+
+When fzf starts in a terminal buffer, the file type of the buffer is set to
+`fzf`. So you can set up `FileType fzf` autocmd to customize the settings of
+the window.
+
+For example, if you open fzf on the bottom on the screen (e.g. `{'down':
+'40%'}`), you might want to temporarily disable the statusline for a cleaner
+look.
+
+```vim
+let g:fzf_layout = { 'down': '30%' }
 autocmd! FileType fzf
 autocmd  FileType fzf set laststatus=0 noshowmode noruler
   \| autocmd BufLeave <buffer> set laststatus=2 showmode ruler
@@ -317,4 +483,4 @@ autocmd  FileType fzf set laststatus=0 noshowmode noruler
 
 The MIT License (MIT)
 
-Copyright (c) 2019 Junegunn Choi
+Copyright (c) 2013-2021 Junegunn Choi

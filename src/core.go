@@ -3,7 +3,7 @@ Package fzf implements fzf, a command-line fuzzy finder.
 
 The MIT License (MIT)
 
-Copyright (c) 2017 Junegunn Choi
+Copyright (c) 2013-2021 Junegunn Choi
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -43,7 +43,7 @@ Matcher  -> EvtHeader         -> Terminal (update header)
 */
 
 // Run starts fzf
-func Run(opts *Options, revision string) {
+func Run(opts *Options, version string, revision string) {
 	sort := opts.Sort > 0
 	sortCriteria = opts.Criteria
 
@@ -66,7 +66,7 @@ func Run(opts *Options, revision string) {
 
 	var lineAnsiState, prevLineAnsiState *ansiState
 	if opts.Ansi {
-		if opts.Theme != nil {
+		if opts.Theme.Colored {
 			ansiProcessor = func(data []byte) (util.Chars, *[]ansiOffset) {
 				prevLineAnsiState = lineAnsiState
 				trimmed, offsets, newState := extractColor(string(data), lineAnsiState, nil)
@@ -102,7 +102,7 @@ func Run(opts *Options, revision string) {
 	} else {
 		chunkList = NewChunkList(func(item *Item, data []byte) bool {
 			tokens := Tokenize(string(data), opts.Delimiter)
-			if opts.Ansi && opts.Theme != nil && len(tokens) > 1 {
+			if opts.Ansi && opts.Theme.Colored && len(tokens) > 1 {
 				var ansiState *ansiState
 				if prevLineAnsiState != nil {
 					ansiStateDup := *prevLineAnsiState
@@ -224,23 +224,29 @@ func Run(opts *Options, revision string) {
 
 	// Event coordination
 	reading := true
+	clearCache := util.Once(false)
+	clearSelection := util.Once(false)
 	ticks := 0
 	var nextCommand *string
 	restart := func(command string) {
 		reading = true
+		clearCache = util.Once(true)
+		clearSelection = util.Once(true)
 		chunkList.Clear()
 		header = make([]string, 0, opts.HeaderLines)
 		go reader.restart(command)
 	}
 	eventBox.Watch(EvtReadNew)
+	query := []rune{}
 	for {
 		delay := true
 		ticks++
 		input := func() []rune {
-			if opts.Phony {
-				return []rune{}
+			paused, input := terminal.Input()
+			if !paused {
+				query = input
 			}
-			return []rune(terminal.Input())
+			return query
 		}
 		eventBox.Wait(func(events *util.Events) {
 			if _, fin := (*events)[EvtReadFin]; fin {
@@ -248,22 +254,26 @@ func Run(opts *Options, revision string) {
 			}
 			for evt, value := range *events {
 				switch evt {
-
+				case EvtQuit:
+					if reading {
+						reader.terminate()
+					}
+					os.Exit(value.(int))
 				case EvtReadNew, EvtReadFin:
-					clearCache := false
 					if evt == EvtReadFin && nextCommand != nil {
-						clearCache = true
 						restart(*nextCommand)
 						nextCommand = nil
+						break
 					} else {
 						reading = reading && evt == EvtReadNew
 					}
 					snapshot, count := chunkList.Snapshot()
 					terminal.UpdateCount(count, !reading, value.(*string))
 					if opts.Sync {
-						terminal.UpdateList(PassMerger(&snapshot, opts.Tac))
+						opts.Sync = false
+						terminal.UpdateList(PassMerger(&snapshot, opts.Tac), false)
 					}
-					matcher.Reset(snapshot, input(), false, !reading, sort, clearCache)
+					matcher.Reset(snapshot, input(), false, !reading, sort, clearCache())
 
 				case EvtSearchNew:
 					var command *string
@@ -279,9 +289,10 @@ func Run(opts *Options, revision string) {
 						} else {
 							restart(*command)
 						}
+						break
 					}
 					snapshot, _ := chunkList.Snapshot()
-					matcher.Reset(snapshot, input(), true, !reading, sort, command != nil)
+					matcher.Reset(snapshot, input(), true, !reading, sort, clearCache())
 					delay = false
 
 				case EvtSearchProgress:
@@ -291,7 +302,9 @@ func Run(opts *Options, revision string) {
 					}
 
 				case EvtHeader:
-					terminal.UpdateHeader(value.([]string))
+					headerPadded := make([]string, opts.HeaderLines)
+					copy(headerPadded, value.([]string))
+					terminal.UpdateHeader(headerPadded)
 
 				case EvtSearchFin:
 					switch val := value.(type) {
@@ -321,7 +334,7 @@ func Run(opts *Options, revision string) {
 								terminal.startChan <- true
 							}
 						}
-						terminal.UpdateList(val)
+						terminal.UpdateList(val, clearSelection())
 					}
 				}
 			}

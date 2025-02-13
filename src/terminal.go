@@ -3099,8 +3099,15 @@ func (t *Terminal) printHighlighted(result Result, colBase tui.ColorPair, colMat
 		maxWidth := t.window.Width() - (indentSize + 1)
 		wasWrapped := false
 		if wrapped {
-			maxWidth -= t.wrapSignWidth
-			t.window.CPrint(colBase.WithAttr(tui.Dim), t.wrapSign)
+			wrapSign := t.wrapSign
+			if maxWidth < t.wrapSignWidth {
+				runes, _ := util.Truncate(wrapSign, maxWidth)
+				wrapSign = string(runes)
+				maxWidth = 0
+			} else {
+				maxWidth -= t.wrapSignWidth
+			}
+			t.window.CPrint(colBase.WithAttr(tui.Dim), wrapSign)
 			wrapped = false
 			wasWrapped = true
 		}
@@ -3165,7 +3172,9 @@ func (t *Terminal) printHighlighted(result Result, colBase tui.ColorPair, colMat
 			displayWidth = t.displayWidthWithLimit(line, 0, displayWidth)
 		}
 
-		t.printColoredString(t.window, line, offsets, colBase)
+		if maxWidth > 0 {
+			t.printColoredString(t.window, line, offsets, colBase)
+		}
 		if postTask != nil {
 			postTask(actualLineNum, displayWidth, wasWrapped, forceRedraw)
 		} else {
